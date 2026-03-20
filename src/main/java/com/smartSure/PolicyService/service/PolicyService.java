@@ -30,6 +30,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
+
+import com.smartSure.PolicyService.client.AuthServiceClient;
+import com.smartSure.PolicyService.dto.client.CustomerProfileResponse;
+import com.smartSure.PolicyService.exception.ServiceUnavailableException;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,10 +50,13 @@ public class PolicyService {
     private final PremiumCalculator      premiumCalculator;
     private final PolicyMapper           policyMapper;
     private final NotificationService    notificationService;
+    private final AuthServiceClient authServiceClient;
+// ═══════════════════════════════════════════════════════════
+// PURCHASE — with CircuitBreaker + RateLimiter
+// ═══════════════════════════════════════════════════════════
 
-    // ═══════════════════════════════════════════════════════════
-    // PURCHASE
-    // ═══════════════════════════════════════════════════════════
+    @CircuitBreaker(name = "policyTypeService", fallbackMethod = "purchaseFallback")
+    @RateLimiter(name = "policyPurchase", fallbackMethod = "purchaseRateLimitFallback")
     @Transactional
     public PolicyResponse purchasePolicy(Long customerId, PolicyPurchaseRequest request) {
 
@@ -105,12 +116,28 @@ public class PolicyService {
         saveAudit(saved.getId(), customerId, "CUSTOMER", "PURCHASED",
                 null, saved.getStatus().name(), "New policy purchased");
 
-        // 9. Notify (fire-and-forget — email failure must not roll back)
-        // Replace "customer@email.com" with AuthService Feign call in production
-        notificationService.sendPolicyPurchasedEmail("customer@email.com", saved);
+        // Fetch customer email from AuthService (with its own circuit breaker via Feign fallback)
+        String customerEmail = getCustomerEmailSafely(customerId);
+        if (customerEmail != null) {
+            notificationService.sendPolicyPurchasedEmail(customerEmail, saved);
+        }
+
 
         log.info("Policy created — policyId={}, policyNumber={}", saved.getId(), saved.getPolicyNumber());
         return buildDetailedResponse(saved);
+    }
+    // Fallback: DB/circuit issues during purchase
+    public PolicyResponse purchaseFallback(Long customerId, PolicyPurchaseRequest request, Throwable t) {
+        log.error("purchasePolicy CIRCUIT BREAKER fallback triggered — customerId={}, reason={}",
+                customerId, t.getMessage());
+        throw new ServiceUnavailableException("Policy purchase service", t);
+    }
+
+    // Fallback: too many requests hitting purchase endpoint
+    public PolicyResponse purchaseRateLimitFallback(Long customerId, PolicyPurchaseRequest request, Throwable t) {
+        log.warn("purchasePolicy RATE LIMIT fallback triggered — customerId={}", customerId);
+        throw new ServiceUnavailableException(
+                "Too many purchase requests. Please wait a moment and try again.");
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -139,8 +166,9 @@ public class PolicyService {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // CANCEL
+    // CANCEL - with CircuitBreaker
     // ═══════════════════════════════════════════════════════════
+    @CircuitBreaker(name = "policyTypeService", fallbackMethod = "cancelFallback")
     @Transactional
     public PolicyResponse cancelPolicy(Long policyId, Long customerId, String reason) {
 
@@ -170,9 +198,17 @@ public class PolicyService {
         saveAudit(policyId, customerId, "CUSTOMER", "CANCELLED",
                 prevStatus, Policy.PolicyStatus.CANCELLED.name(), reason);
 
-        notificationService.sendPolicyCancelledEmail("customer@email.com", saved);
+        String customerEmail = getCustomerEmailSafely(customerId);
+        if (customerEmail != null) {
+            notificationService.sendPolicyCancelledEmail(customerEmail, saved);
+        }
 
         return policyMapper.toResponse(saved);
+    }
+
+    public PolicyResponse cancelFallback(Long policyId, Long customerId, String reason, Throwable t) {
+        log.error("cancelPolicy CIRCUIT BREAKER fallback — policyId={}, reason={}", policyId, t.getMessage());
+        throw new ServiceUnavailableException("Policy cancellation service", t);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -232,8 +268,9 @@ public class PolicyService {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // PREMIUM PAYMENT
+    // PREMIUM PAYMENT - with CircuitBreaker
     // ═══════════════════════════════════════════════════════════
+    @CircuitBreaker(name = "policyTypeService", fallbackMethod = "payPremiumFallback")
     @Transactional
     public PremiumResponse payPremium(Long customerId, PremiumPaymentRequest request) {
 
@@ -269,10 +306,17 @@ public class PolicyService {
                 Premium.PremiumStatus.PENDING.name(), Premium.PremiumStatus.PAID.name(),
                 "Premium ID: " + premium.getId() + ", Ref: " + premium.getPaymentReference());
 
-        notificationService.sendPremiumPaidEmail("customer@email.com", policy, saved);
-
+        String customerEmail = getCustomerEmailSafely(customerId);
+        if (customerEmail != null) {
+            notificationService.sendPremiumPaidEmail(customerEmail, policy, saved);
+        }
         return mapPremium(saved);
     }
+    public PremiumResponse payPremiumFallback(Long customerId, PremiumPaymentRequest request, Throwable t) {
+        log.error("payPremium CIRCUIT BREAKER fallback — customerId={}, reason={}", customerId, t.getMessage());
+        throw new ServiceUnavailableException("Premium payment service", t);
+    }
+
 
     @Transactional(readOnly = true)
     public List<PremiumResponse> getPremiumsByPolicy(Long policyId) {
@@ -467,5 +511,23 @@ public class PolicyService {
                 .totalPages(page.getTotalPages())
                 .last(page.isLast())
                 .build();
+    }
+    // ═══════════════════════════════════════════════════════════
+    // HELPER — get customer email safely with AuthService CB
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * Fetches customer email from AuthService.
+     * Returns null if AuthService is down — callers skip notification gracefully.
+     * The Feign client already has its own fallback (AuthServiceFallback)
+     * so this method never throws.
+     */
+    private String getCustomerEmailSafely(Long customerId) {
+        try {
+            return authServiceClient.getCustomerEmail(customerId);
+        } catch (Exception e) {
+            log.warn("Could not fetch customer email for customerId={}: {}", customerId, e.getMessage());
+            return null;
+        }
     }
 }

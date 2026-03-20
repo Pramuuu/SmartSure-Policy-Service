@@ -167,6 +167,27 @@
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 
+		<!-- ================= RESILIENCE4J ================= -->
+		<!-- Circuit Breaker, Retry, Rate Limiter, Bulkhead -->
+		<dependency>
+			<groupId>io.github.resilience4j</groupId>
+			<artifactId>resilience4j-spring-boot3</artifactId>
+			<version>2.2.0</version>
+		</dependency>
+
+		<!-- Required for @CircuitBreaker annotation to work with Spring AOP -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aop</artifactId>
+		</dependency>
+
+<!--		&lt;!&ndash; Exposes circuit breaker metrics to /actuator/health &ndash;&gt;-->
+<!--		<dependency>-->
+<!--			<groupId>io.github.resilience4j</groupId>-->
+<!--			<artifactId>resilience4j-micrometer</artifactId>-->
+<!--			<version>2.2.0</version>-->
+<!--		</dependency>-->
+
 	</dependencies>
 
 	<!-- ================= DEPENDENCY MANAGEMENT ================= -->

@@ -10,12 +10,20 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+//  Resilience4j imports
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
+
 /**
- * Async email notifications for policy lifecycle events.
+ * NotificationService
  *
- * NOTE: customerEmail is passed in from PolicyService which should
- * fetch it from AuthService via Feign. For now we accept it as a
- * parameter so the rest of the logic compiles independently.
+ * Handles all email communications in the system.
+ *
+ *  ENTERPRISE DESIGN:
+ * - Async → does not block main transaction
+ * - Retry → handles temporary failures (network/email server)
+ * - Circuit Breaker → prevents repeated failures
+ * - Fallback → ensures system never crashes due to email failure
  */
 @Slf4j
 @Service
@@ -27,10 +35,14 @@ public class NotificationService {
     @Value("${notification.from-email}")
     private String fromEmail;
 
-    // ── Policy Purchase ────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────
+    //  POLICY PURCHASE EMAIL
+    // ─────────────────────────────────────────────────────────
     @Async
     public void sendPolicyPurchasedEmail(String toEmail, Policy policy) {
+
         String subject = "Policy Purchased — " + policy.getPolicyNumber();
+
         String body = """
                 Dear Customer,
 
@@ -55,13 +67,18 @@ public class NotificationService {
                 policy.getEndDate(),
                 policy.getStatus().name()
         );
-        send(toEmail, subject, body);
+
+        send(toEmail, subject, body); //  central method
     }
 
-    // ── Premium Payment Confirmed ──────────────────────────────
+    // ─────────────────────────────────────────────────────────
+    //  PREMIUM PAYMENT EMAIL
+    // ─────────────────────────────────────────────────────────
     @Async
     public void sendPremiumPaidEmail(String toEmail, Policy policy, Premium premium) {
+
         String subject = "Premium Payment Confirmed — " + policy.getPolicyNumber();
+
         String body = """
                 Dear Customer,
 
@@ -79,45 +96,59 @@ public class NotificationService {
                 premium.getAmount(),
                 premium.getPaidDate(),
                 premium.getPaymentReference(),
-                premium.getPaymentMethod() != null ? premium.getPaymentMethod().name() : "N/A"
+                premium.getPaymentMethod() != null
+                        ? premium.getPaymentMethod().name()
+                        : "N/A"
         );
+
         send(toEmail, subject, body);
     }
 
-    // ── Policy Cancelled ───────────────────────────────────────
+    // ─────────────────────────────────────────────────────────
+    //  POLICY CANCEL EMAIL
+    // ─────────────────────────────────────────────────────────
     @Async
     public void sendPolicyCancelledEmail(String toEmail, Policy policy) {
+
         String subject = "Policy Cancelled — " + policy.getPolicyNumber();
+
         String body = """
                 Dear Customer,
 
                 Your policy %s has been cancelled.
                 Reason: %s
 
-                If this was a mistake, please contact our support team.
+                If this was a mistake, please contact support.
 
                 SmartSure Support
                 """.formatted(
                 policy.getPolicyNumber(),
-                policy.getCancellationReason() != null ? policy.getCancellationReason() : "Not specified"
+                policy.getCancellationReason() != null
+                        ? policy.getCancellationReason()
+                        : "Not specified"
         );
+
         send(toEmail, subject, body);
     }
 
-    // ── Premium Due Reminder ───────────────────────────────────
+    // ─────────────────────────────────────────────────────────
+    //  PREMIUM REMINDER EMAIL
+    // ─────────────────────────────────────────────────────────
     @Async
     public void sendPremiumDueReminderEmail(String toEmail, Policy policy, Premium premium) {
+
         String subject = "Premium Due Reminder — " + policy.getPolicyNumber();
+
         String body = """
                 Dear Customer,
 
-                This is a reminder that your premium payment is due soon.
+                Your premium payment is due soon.
 
                 Policy Number : %s
                 Amount Due    : ₹%s
                 Due Date      : %s
 
-                Please ensure timely payment to keep your policy active.
+                Please pay on time to keep policy active.
 
                 SmartSure Team
                 """.formatted(
@@ -125,41 +156,91 @@ public class NotificationService {
                 premium.getAmount(),
                 premium.getDueDate()
         );
+
         send(toEmail, subject, body);
     }
 
-    // ── Policy Expiry Reminder ─────────────────────────────────
+    // ─────────────────────────────────────────────────────────
+    //  POLICY EXPIRY REMINDER
+    // ─────────────────────────────────────────────────────────
     @Async
     public void sendPolicyExpiryReminderEmail(String toEmail, Policy policy) {
-        String subject = "Your Policy Expires Soon — " + policy.getPolicyNumber();
+
+        String subject = "Policy Expiry Reminder — " + policy.getPolicyNumber();
+
         String body = """
                 Dear Customer,
 
                 Your policy %s is expiring on %s.
 
-                Renew now to continue enjoying uninterrupted coverage.
+                Renew soon to avoid coverage interruption.
 
                 SmartSure Team
                 """.formatted(
                 policy.getPolicyNumber(),
                 policy.getEndDate()
         );
+
         send(toEmail, subject, body);
     }
 
-    // ── Internal Send ──────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────
+    //  CORE EMAIL METHOD (RESILIENT)
+    // ─────────────────────────────────────────────────────────
+
+    /**
+     * Central email sending logic
+     *
+     *  Improvements:
+     * - Retry → attempts resend on failure
+     * - CircuitBreaker → stops hitting failing email server
+     * - Exception rethrow → required for resilience to work
+     */
+    @CircuitBreaker(name = "notificationService", fallbackMethod = "sendFallback")
+    @Retry(name = "notificationService")
     private void send(String to, String subject, String body) {
+
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);
             message.setTo(to);
             message.setSubject(subject);
             message.setText(body);
+
             mailSender.send(message);
+
             log.info("Email sent to {} — subject: {}", to, subject);
+
         } catch (Exception ex) {
-            // Never let email failure break the main transaction
-            log.error("Failed to send email to {}: {}", to, ex.getMessage());
+
+            //  MUST rethrow for Retry & CircuitBreaker
+            log.error("Email send failed to {}: {}", to, ex.getMessage());
+
+            throw ex;
         }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    //  FALLBACK METHOD
+    // ─────────────────────────────────────────────────────────
+
+    /**
+     * Fallback after retries fail
+     *
+     *  KEY RULE:
+     * Email failure must NEVER break business flow
+     */
+    public void sendFallback(String to, String subject, String body, Throwable t) {
+
+        log.error(
+                "CIRCUIT BREAKER ACTIVATED — Email FAILED permanently.\nTo: {}\nSubject: {}\nReason: {}",
+                to,
+                subject,
+                t.getMessage()
+        );
+
+        //  DO NOTHING (intentional)
+        // Future improvement:
+        // → Save failed emails to DB / Kafka for retry
     }
 }

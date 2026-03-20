@@ -1,5 +1,6 @@
 package com.smartSure.PolicyService.exception;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -83,7 +84,27 @@ public class GlobalExceptionHandler {
         return buildError(HttpStatus.UNAUTHORIZED, "Unauthorized", null);
     }
 
-    // ── 500 Fallback ───────────────────────────────────────────
+    // ── 503 Circuit Breaker OPEN ───────────────────────────────
+    @ExceptionHandler(CallNotPermittedException.class)
+    public ResponseEntity<Map<String, Object>> handleCircuitBreakerOpen(CallNotPermittedException ex) {
+        return buildError(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Service temporarily unavailable — circuit breaker is open. Please try again later.",
+                null
+        );
+    }
+
+    // ── 503 Custom Service Down ────────────────────────────────
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleServiceUnavailable(ServiceUnavailableException ex) {
+        return buildError(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                ex.getMessage(),
+                null
+        );
+    }
+
+    // ── 500 Global ─────────────────────────────────────────────
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGlobal(Exception ex) {
         return buildError(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", null);

@@ -11,9 +11,13 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
+
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import com.smartSure.PolicyService.exception.ServiceUnavailableException;
 
 import java.util.List;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PolicyTypeService {
@@ -24,6 +28,8 @@ public class PolicyTypeService {
     // ── Public ────────────────────────────────────────────────
 
     @Cacheable("policyTypes")
+    @CircuitBreaker(name = "policyTypeService", fallbackMethod = "getAllActiveFallback")
+
     public List<PolicyTypeResponse> getAllActivePolicyTypes() {
         return policyTypeRepository
                 .findByStatusOrderByCategory(PolicyType.PolicyTypeStatus.ACTIVE)
@@ -31,10 +37,24 @@ public class PolicyTypeService {
                 .map(policyTypeMapper::toResponse)
                 .toList();
     }
+    // Fallback: return empty list so the API doesn't crash
+    // Customers see "no products available" instead of 500 error
+    public List<PolicyTypeResponse> getAllActiveFallback(Throwable t) {
+        log.error("getAllActivePolicyTypes CIRCUIT BREAKER fallback — reason={}", t.getMessage());
+        return List.of(); // empty list — frontend shows "no products available"
+    }
 
     @Cacheable(value = "policyById", key = "#id")
+    @CircuitBreaker(name = "policyTypeService", fallbackMethod = "getPolicyTypeFallback")
+
     public PolicyTypeResponse getPolicyTypeById(Long id) {
         return policyTypeMapper.toResponse(getPolicyTypeEntity(id));
+    }
+
+    // Fallback: throw ServiceUnavailable — we can't proceed without the product details
+    public PolicyTypeResponse getPolicyTypeFallback(Long id, Throwable t) {
+        log.error("getPolicyTypeById CIRCUIT BREAKER fallback — id={}, reason={}", id, t.getMessage());
+        throw new ServiceUnavailableException("Policy type lookup service", t);
     }
 
     public List<PolicyTypeResponse> getByCategory(PolicyType.InsuranceCategory category) {
