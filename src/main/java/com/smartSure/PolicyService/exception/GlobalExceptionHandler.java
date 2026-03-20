@@ -1,5 +1,6 @@
-package com.smartSure.PolicyService.config;
+package com.smartSure.PolicyService.exception;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -17,75 +18,85 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Validation Errors (DTO validation)
+    // ── 404 Not Found ──────────────────────────────────────────
+    @ExceptionHandler({PolicyNotFoundException.class, PolicyTypeNotFoundException.class, PremiumNotFoundException.class})
+    public ResponseEntity<Map<String, Object>> handleNotFound(RuntimeException ex) {
+        return buildError(HttpStatus.NOT_FOUND, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleEntityNotFound(EntityNotFoundException ex) {
+        return buildError(HttpStatus.NOT_FOUND, ex.getMessage(), null);
+    }
+
+    // ── 400 Bad Request ────────────────────────────────────────
+    @ExceptionHandler({InactivePolicyTypeException.class, CoverageExceedsLimitException.class})
+    public ResponseEntity<Map<String, Object>> handleBadRequest(RuntimeException ex) {
+        return buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
-
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String field = ((FieldError) error).getField();
-            String message = error.getDefaultMessage();
-            errors.put(field, message);
+            errors.put(field, error.getDefaultMessage());
         });
-
         return buildError(HttpStatus.BAD_REQUEST, "Validation failed", errors);
     }
 
-    // Bad request (wrong input)
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArg(IllegalArgumentException ex) {
         return buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
     }
 
-    // Business conflict
+    // ── 409 Conflict ───────────────────────────────────────────
+    @ExceptionHandler({DuplicatePolicyException.class, PolicyAlreadyActiveException.class})
+    public ResponseEntity<Map<String, Object>> handleConflict(RuntimeException ex) {
+        return buildError(HttpStatus.CONFLICT, ex.getMessage(), null);
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
         return buildError(HttpStatus.CONFLICT, ex.getMessage(), null);
     }
 
-    // Security custom exception
-    @ExceptionHandler(SecurityException.class)
-    public ResponseEntity<Map<String, Object>> handleSecurity(SecurityException ex) {
+    // ── 403 Forbidden ──────────────────────────────────────────
+    @ExceptionHandler({UnauthorizedAccessException.class, SecurityException.class})
+    public ResponseEntity<Map<String, Object>> handleForbidden(RuntimeException ex) {
         return buildError(HttpStatus.FORBIDDEN, ex.getMessage(), null);
     }
 
-    // Access denied (ROLE issue)
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
         return buildError(HttpStatus.FORBIDDEN, "Access denied", null);
     }
 
-    // Invalid credentials (login failure)
+    // ── 401 Unauthorized ───────────────────────────────────────
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
         return buildError(HttpStatus.UNAUTHORIZED, "Invalid credentials", null);
     }
 
-    // Unauthorized (JWT missing/invalid)
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<Map<String, Object>> handleAuth(AuthenticationException ex) {
         return buildError(HttpStatus.UNAUTHORIZED, "Unauthorized", null);
     }
 
-    // Catch-all (last fallback)
+    // ── 500 Fallback ───────────────────────────────────────────
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGlobal(Exception ex) {
-        return buildError(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), null);
+        return buildError(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", null);
     }
 
-    //  Common Response Builder
+    // ── Builder ────────────────────────────────────────────────
     private ResponseEntity<Map<String, Object>> buildError(HttpStatus status, String message, Object details) {
         Map<String, Object> body = new HashMap<>();
-
-        body.put("timestamp", LocalDateTime.now());
+        body.put("timestamp", LocalDateTime.now().toString());
         body.put("status", status.value());
         body.put("error", status.getReasonPhrase());
         body.put("message", message);
-
-        if (details != null) {
-            body.put("details", details);
-        }
-
+        if (details != null) body.put("details", details);
         return ResponseEntity.status(status).body(body);
     }
 }

@@ -6,12 +6,16 @@ import com.smartSure.PolicyService.dto.policy.*;
 import com.smartSure.PolicyService.dto.premium.PremiumPaymentRequest;
 import com.smartSure.PolicyService.dto.premium.PremiumResponse;
 import com.smartSure.PolicyService.service.PolicyService;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,21 +42,28 @@ public class PolicyController {
             @RequestHeader("X-User-Id") Long customerId,
             @Valid @RequestBody PolicyPurchaseRequest request) {
 
-
-
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(policyService.purchasePolicy(customerId, request));
     }
 
+    //  PAGINATED VERSION
     @GetMapping("/my")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Get all my policies")
-    public ResponseEntity<List<PolicyResponse>> getMyPolicies(
-            @RequestHeader("X-User-Id") Long customerId) {
+    @Operation(summary = "Get all my policies (paginated)")
+    public ResponseEntity<PolicyPageResponse> getMyPolicies(
+            @RequestHeader("X-User-Id") Long customerId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction) {
 
+        Sort sort = direction.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
 
-
-        return ResponseEntity.ok(policyService.getCustomerPolicies(customerId));
+        return ResponseEntity.ok(
+                policyService.getCustomerPolicies(customerId, PageRequest.of(page, size, sort))
+        );
     }
 
     @GetMapping("/{policyId}")
@@ -126,7 +137,6 @@ public class PolicyController {
     public ResponseEntity<PremiumCalculationResponse> calculatePremium(
             @Valid @RequestBody PremiumCalculationRequest request) {
 
-
         return ResponseEntity.ok(
                 policyService.calculatePremium(request)
         );
@@ -134,12 +144,23 @@ public class PolicyController {
 
     // ==================== ADMIN APIs ====================
 
+    //  PAGINATED VERSION
     @GetMapping("/admin/all")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get all policies (Admin only)")
-    public ResponseEntity<List<PolicyResponse>> getAllPolicies() {
+    @Operation(summary = "Get all policies paginated (Admin only)")
+    public ResponseEntity<PolicyPageResponse> getAllPolicies(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction) {
 
-        return ResponseEntity.ok(policyService.getAllPolicies());
+        Sort sort = direction.equalsIgnoreCase("asc")
+                ? Sort.by(sortBy).ascending()
+                : Sort.by(sortBy).descending();
+
+        return ResponseEntity.ok(
+                policyService.getAllPolicies(PageRequest.of(page, size, sort))
+        );
     }
 
     @PutMapping("/admin/{policyId}/status")
@@ -148,7 +169,6 @@ public class PolicyController {
     public ResponseEntity<PolicyResponse> adminUpdateStatus(
             @PathVariable Long policyId,
             @Valid @RequestBody PolicyStatusUpdateRequest request) {
-
 
         return ResponseEntity.ok(
                 policyService.adminUpdatePolicyStatus(policyId, request)

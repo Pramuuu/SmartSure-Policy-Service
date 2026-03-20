@@ -1,13 +1,14 @@
 package com.smartSure.PolicyService.service;
 
-
 import com.smartSure.PolicyService.dto.policytype.PolicyTypeRequest;
 import com.smartSure.PolicyService.dto.policytype.PolicyTypeResponse;
 import com.smartSure.PolicyService.entity.PolicyType;
+import com.smartSure.PolicyService.exception.PolicyTypeNotFoundException;
 import com.smartSure.PolicyService.mapper.PolicyTypeMapper;
 import com.smartSure.PolicyService.repository.PolicyTypeRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +19,11 @@ import java.util.List;
 public class PolicyTypeService {
 
     private final PolicyTypeRepository policyTypeRepository;
-    private final PolicyTypeMapper policyTypeMapper;
+    private final PolicyTypeMapper     policyTypeMapper;
 
-    // ==================== PUBLIC APIs ====================
+    // ── Public ────────────────────────────────────────────────
 
+    @Cacheable("policyTypes")
     public List<PolicyTypeResponse> getAllActivePolicyTypes() {
         return policyTypeRepository
                 .findByStatusOrderByCategory(PolicyType.PolicyTypeStatus.ACTIVE)
@@ -30,9 +32,9 @@ public class PolicyTypeService {
                 .toList();
     }
 
+    @Cacheable(value = "policyById", key = "#id")
     public PolicyTypeResponse getPolicyTypeById(Long id) {
-        PolicyType pt = getPolicyTypeEntity(id);
-        return policyTypeMapper.toResponse(pt);
+        return policyTypeMapper.toResponse(getPolicyTypeEntity(id));
     }
 
     public List<PolicyTypeResponse> getByCategory(PolicyType.InsuranceCategory category) {
@@ -43,7 +45,7 @@ public class PolicyTypeService {
                 .toList();
     }
 
-    // ==================== ADMIN APIs ====================
+    // ── Admin ─────────────────────────────────────────────────
 
     public List<PolicyTypeResponse> getAllPolicyTypes() {
         return policyTypeRepository.findAll()
@@ -53,13 +55,11 @@ public class PolicyTypeService {
     }
 
     @Transactional
+    @CacheEvict(value = {"policyTypes", "policyById"}, allEntries = true)
     public PolicyTypeResponse createPolicyType(PolicyTypeRequest request) {
-
-        // Duplicate check
         if (policyTypeRepository.existsByName(request.getName())) {
-            throw new IllegalArgumentException("Policy type already exists with name: " + request.getName());
+            throw new IllegalArgumentException("Policy type already exists: " + request.getName());
         }
-
         validateAgeRange(request.getMinAge(), request.getMaxAge());
 
         PolicyType pt = PolicyType.builder()
@@ -80,13 +80,11 @@ public class PolicyTypeService {
     }
 
     @Transactional
+    @CacheEvict(value = {"policyTypes", "policyById"}, allEntries = true)
     public PolicyTypeResponse updatePolicyType(Long id, PolicyTypeRequest request) {
-
         PolicyType pt = getPolicyTypeEntity(id);
-
         validateAgeRange(request.getMinAge(), request.getMaxAge());
 
-        // Update fields
         pt.setName(request.getName());
         pt.setDescription(request.getDescription());
         pt.setCategory(request.getCategory());
@@ -102,20 +100,18 @@ public class PolicyTypeService {
     }
 
     @Transactional
+    @CacheEvict(value = {"policyTypes", "policyById"}, allEntries = true)
     public void deletePolicyType(Long id) {
         PolicyType pt = getPolicyTypeEntity(id);
-
-        // Soft delete
         pt.setStatus(PolicyType.PolicyTypeStatus.DISCONTINUED);
-
         policyTypeRepository.save(pt);
     }
 
-    // ==================== PRIVATE HELPERS ====================
+    // ── Helpers ───────────────────────────────────────────────
 
     private PolicyType getPolicyTypeEntity(Long id) {
         return policyTypeRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Policy type not found with id: " + id));
+                .orElseThrow(() -> new PolicyTypeNotFoundException(id));
     }
 
     private void validateAgeRange(Integer minAge, Integer maxAge) {
