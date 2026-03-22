@@ -167,6 +167,12 @@
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 
+		<!-- RabbitMQ -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
+		</dependency>
+
 		<!-- ================= RESILIENCE4J ================= -->
 		<!-- Circuit Breaker, Retry, Rate Limiter, Bulkhead -->
 		<dependency>
