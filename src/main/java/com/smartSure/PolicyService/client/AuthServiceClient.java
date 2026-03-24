@@ -24,9 +24,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 )
 public interface AuthServiceClient {
 
-    @GetMapping("/api/auth/internal/users/{userId}/profile")
+    @GetMapping("/user/internal/{userId}/profile")
     CustomerProfileResponse getCustomerProfile(@PathVariable("userId") Long userId);
 
-    @GetMapping("/api/auth/internal/users/{userId}/email")
+    @GetMapping("/user/internal/{userId}/email")
     String getCustomerEmail(@PathVariable("userId") Long userId);
 }

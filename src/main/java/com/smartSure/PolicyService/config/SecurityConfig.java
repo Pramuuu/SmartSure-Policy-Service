@@ -30,45 +30,39 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
-                // Disable CSRF (stateless APIs)
                 .csrf(csrf -> csrf.disable())
 
-                // Stateless session
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // Exception handling
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(UNAUTHORIZED)) // 401
-                        .accessDeniedHandler((req, res, ex1) -> res.setStatus(FORBIDDEN.value())) // 403
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(UNAUTHORIZED))
+                        .accessDeniedHandler((req, res, ex1) -> res.setStatus(FORBIDDEN.value()))
                 )
 
-                // Authorization rules
                 .authorizeHttpRequests(auth -> auth
 
-                        // Preflight (CORS)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        // Actuator
-                        .requestMatchers("/actuator/**").permitAll()
+                        // ACTUATOR
+                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
 
-                        // Swagger
+                        // SWAGGER
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
 
-                        // Public APIs
+                        // PUBLIC APIs
                         .requestMatchers(HttpMethod.GET, "/api/policy-types/**").permitAll()
                         .requestMatchers("/api/policies/calculate-premium").permitAll()
 
-                        // Everything else requires authentication
-                        .anyRequest().permitAll()
+                        // EVERYTHING ELSE SECURED
+                        .anyRequest().authenticated()
                 )
 
-                //  SECURITY FILTER FLOW
                 .addFilterBefore(internalRequestFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(headerAuthenticationFilter, InternalRequestFilter.class);
 
