@@ -23,6 +23,7 @@ public class NotificationService {
 
     // ── Policy Purchased ───────────────────────────────────
 
+    // Sends a confirmation email to the customer after a policy is successfully purchased
     public void sendPolicyPurchasedEmail(
             String toEmail, String customerName, String policyNumber,
             String policyTypeName, BigDecimal coverageAmount,
@@ -51,6 +52,7 @@ public class NotificationService {
 
     // ── Premium Paid ───────────────────────────────────────
 
+    // Sends a payment confirmation email to the customer after a premium installment is paid
     public void sendPremiumPaidEmail(
             String toEmail, String customerName, String policyNumber,
             BigDecimal amount, LocalDate paidDate,
@@ -77,6 +79,7 @@ public class NotificationService {
 
     // ── Policy Cancelled ───────────────────────────────────
 
+    // Sends a cancellation notification email to the customer with the cancellation reason
     public void sendPolicyCancelledEmail(
             String toEmail, String customerName,
             String policyNumber, String cancellationReason) {
@@ -99,6 +102,7 @@ public class NotificationService {
 
     // ── Internal Send ──────────────────────────────────────
 
+    // Core email sender — rethrows exceptions so RabbitMQ retry mechanism can count failures
     private void send(String to, String subject, String body) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
@@ -114,6 +118,7 @@ public class NotificationService {
             throw ex;
         }
     }
+    // Sends a reminder email to the customer when a premium installment is due soon
     public void sendPremiumDueReminderEmail(
             String toEmail, String customerName,
             String policyNumber, BigDecimal amount, LocalDate dueDate) {
@@ -135,6 +140,7 @@ public class NotificationService {
         send(toEmail, subject, body);
     }
 
+    // Sends a reminder email to the customer when their policy is about to expire
     public void sendPolicyExpiryReminderEmail(
             String toEmail, String customerName,
             String policyNumber, String policyTypeName, LocalDate endDate) {

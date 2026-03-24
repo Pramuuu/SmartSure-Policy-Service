@@ -16,9 +16,7 @@ public class PremiumCalculator {
 
     // ==================== MAIN CALCULATION ====================
 
-    /**
-     * Calculate premium per installment including frequency loading.
-     */
+    // Calculates the per-installment premium by applying coverage factor, age factor, and frequency loading
     public PremiumCalculationResponse calculatePremium(
             PolicyType policyType,
             BigDecimal coverageAmount,
@@ -40,9 +38,7 @@ public class PremiumCalculator {
                 .build();
     }
 
-    /**
-     * Calculate annual premium without frequency adjustments.
-     */
+    // Calculates the annual premium from base premium, coverage factor, and age factor — no frequency applied
     public BigDecimal calculateAnnual(PolicyType policyType, BigDecimal coverageAmount, Integer age) {
         BigDecimal coverageFactor = calculateCoverageFactor(coverageAmount);
         BigDecimal ageFactor = calculateAgeFactor(age);
@@ -55,10 +51,12 @@ public class PremiumCalculator {
 
     // ==================== CORE FACTORS ====================
 
+    // Returns coverage / 100,000 as a scaling factor for the base premium
     private BigDecimal calculateCoverageFactor(BigDecimal coverageAmount) {
         return coverageAmount.divide(BASE_COVERAGE_UNIT, 4, RoundingMode.HALF_UP);
     }
 
+    // Returns an age-based risk multiplier — younger customers pay less, older customers pay more
     private BigDecimal calculateAgeFactor(Integer age) {
         if (age == null) return BigDecimal.ONE;
 
@@ -72,6 +70,7 @@ public class PremiumCalculator {
 
     // ==================== FREQUENCY LOGIC ====================
 
+    // Splits the annual premium into installments and applies a small surcharge for more frequent payments
     private BigDecimal applyFrequency(BigDecimal annualPremium, Policy.PaymentFrequency frequency) {
         return switch (frequency) {
             case MONTHLY -> annualPremium.multiply(new BigDecimal("1.05"))
@@ -86,9 +85,7 @@ public class PremiumCalculator {
 
     // ==================== SCHEDULE HELPERS ====================
 
-    /**
-     * Number of installments over the policy term.
-     */
+    // Returns the total number of premium installments over the policy term
     public int installmentCount(int termMonths, Policy.PaymentFrequency frequency) {
         return switch (frequency) {
             case MONTHLY -> termMonths;
@@ -98,9 +95,7 @@ public class PremiumCalculator {
         };
     }
 
-    /**
-     * Months between installments.
-     */
+    // Returns the number of months between consecutive premium installments
     public int monthsBetweenInstallments(Policy.PaymentFrequency frequency) {
         return switch (frequency) {
             case MONTHLY -> 1;
@@ -112,9 +107,7 @@ public class PremiumCalculator {
 
     // ==================== HELPER: SUM ACTIVE COVERAGES ====================
 
-    /**
-     * Sum total coverage amount of active policies.
-     */
+    // Sums the coverage amounts of all provided active policies
     public BigDecimal sumActiveCoverages(List<Policy> activePolicies) {
         return activePolicies.stream()
                 .map(Policy::getCoverageAmount)
@@ -123,6 +116,7 @@ public class PremiumCalculator {
 
     // ==================== BREAKDOWN (INTERVIEW GOLD) ====================
 
+    // Builds a human-readable string showing the factors that contributed to the calculated premium
     private String buildBreakdown(
             PolicyType policyType,
             BigDecimal coverageFactor,

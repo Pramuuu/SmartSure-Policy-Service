@@ -23,6 +23,7 @@ public class NotificationPublisher {
 
     private final RabbitTemplate rabbitTemplate;
 
+    // Publishes a POLICY_PURCHASED event to RabbitMQ after a policy is bought or renewed
     public void publishPolicyPurchased(PolicyPurchasedEvent event) {
         event.setPublishedAt(LocalDateTime.now());
         try {
@@ -40,6 +41,7 @@ public class NotificationPublisher {
         }
     }
 
+    // Publishes a PREMIUM_PAID event to RabbitMQ after a premium installment is paid
     public void publishPremiumPaid(PremiumPaidEvent event) {
         event.setPublishedAt(LocalDateTime.now());
         try {
@@ -56,6 +58,7 @@ public class NotificationPublisher {
         }
     }
 
+    // Publishes a POLICY_CANCELLED event to RabbitMQ after a policy is cancelled
     public void publishPolicyCancelled(PolicyCancelledEvent event) {
         event.setPublishedAt(LocalDateTime.now());
         try {
@@ -72,6 +75,7 @@ public class NotificationPublisher {
         }
     }
 
+    // Publishes a PREMIUM_DUE_REMINDER event to RabbitMQ for premiums due in 7 days
     public void publishPremiumDueReminder(PremiumDueReminderEvent event) {
         event.setPublishedAt(LocalDateTime.now());
         try {
@@ -87,6 +91,7 @@ public class NotificationPublisher {
         }
     }
 
+    // Publishes a POLICY_EXPIRY_REMINDER event to RabbitMQ for policies expiring in 30 days
     public void publishPolicyExpiryReminder(PolicyExpiryReminderEvent event) {
         event.setPublishedAt(LocalDateTime.now());
         try {

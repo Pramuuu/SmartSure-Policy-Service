@@ -6,8 +6,7 @@ import com.smartSure.PolicyService.dto.policy.*;
 import com.smartSure.PolicyService.dto.premium.PremiumPaymentRequest;
 import com.smartSure.PolicyService.dto.premium.PremiumResponse;
 import com.smartSure.PolicyService.service.PolicyService;
-
-import io.swagger.v3.oas.annotations.Operation;
+import com.smartSure.PolicyService.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -37,25 +36,28 @@ public class PolicyController {
 
     @PostMapping("/purchase")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Purchase a new insurance policy")
     public ResponseEntity<PolicyResponse> purchasePolicy(
-            @RequestHeader("X-User-Id") Long customerId,
             @Valid @RequestBody PolicyPurchaseRequest request) {
+
+        Long customerId = SecurityUtils.getCurrentUserId();
+
+        if (customerId == null) {
+            throw new RuntimeException("Unauthorized: User not found in context");
+        }
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(policyService.purchasePolicy(customerId, request));
     }
 
-    //  PAGINATED VERSION
     @GetMapping("/my")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Get all my policies (paginated)")
     public ResponseEntity<PolicyPageResponse> getMyPolicies(
-            @RequestHeader("X-User-Id") Long customerId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String direction) {
+
+        Long customerId = SecurityUtils.getCurrentUserId();
 
         Sort sort = direction.equalsIgnoreCase("asc")
                 ? Sort.by(sortBy).ascending()
@@ -68,13 +70,12 @@ public class PolicyController {
 
     @GetMapping("/{policyId}")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Get policy details by ID")
-    public ResponseEntity<PolicyResponse> getPolicyById(
-            @PathVariable Long policyId,
-            @RequestHeader("X-User-Id") Long userId,
-            @RequestHeader("X-User-Role") String role) {
+    public ResponseEntity<PolicyResponse> getPolicyById(@PathVariable Long policyId) {
 
-        boolean isAdmin = "ADMIN".equals(role);
+        Long userId = SecurityUtils.getCurrentUserId();
+        String role = SecurityUtils.getCurrentRole();
+
+        boolean isAdmin = "ROLE_ADMIN".equals(role);
 
         return ResponseEntity.ok(
                 policyService.getPolicyById(policyId, userId, isAdmin)
@@ -83,11 +84,11 @@ public class PolicyController {
 
     @PutMapping("/{policyId}/cancel")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Cancel my policy")
     public ResponseEntity<PolicyResponse> cancelPolicy(
             @PathVariable Long policyId,
-            @RequestHeader("X-User-Id") Long customerId,
             @RequestParam(required = false) String reason) {
+
+        Long customerId = SecurityUtils.getCurrentUserId();
 
         return ResponseEntity.ok(
                 policyService.cancelPolicy(policyId, customerId, reason)
@@ -96,10 +97,10 @@ public class PolicyController {
 
     @PostMapping("/renew")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Renew an existing policy")
     public ResponseEntity<PolicyResponse> renewPolicy(
-            @RequestHeader("X-User-Id") Long customerId,
             @Valid @RequestBody PolicyRenewalRequest request) {
+
+        Long customerId = SecurityUtils.getCurrentUserId();
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(policyService.renewPolicy(customerId, request));
@@ -109,10 +110,10 @@ public class PolicyController {
 
     @PostMapping("/premiums/pay")
     @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Pay a premium installment")
     public ResponseEntity<PremiumResponse> payPremium(
-            @RequestHeader("X-User-Id") Long customerId,
             @Valid @RequestBody PremiumPaymentRequest request) {
+
+        Long customerId = SecurityUtils.getCurrentUserId();
 
         return ResponseEntity.ok(
                 policyService.payPremium(customerId, request)
@@ -121,7 +122,6 @@ public class PolicyController {
 
     @GetMapping("/{policyId}/premiums")
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Get premium schedule for a policy")
     public ResponseEntity<List<PremiumResponse>> getPremiums(
             @PathVariable Long policyId) {
 
@@ -133,7 +133,6 @@ public class PolicyController {
     // ==================== PREMIUM CALCULATION ====================
 
     @PostMapping("/calculate-premium")
-    @Operation(summary = "Calculate premium before purchase (no auth required for quote)")
     public ResponseEntity<PremiumCalculationResponse> calculatePremium(
             @Valid @RequestBody PremiumCalculationRequest request) {
 
@@ -144,10 +143,8 @@ public class PolicyController {
 
     // ==================== ADMIN APIs ====================
 
-    //  PAGINATED VERSION
     @GetMapping("/admin/all")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get all policies paginated (Admin only)")
     public ResponseEntity<PolicyPageResponse> getAllPolicies(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -165,7 +162,6 @@ public class PolicyController {
 
     @PutMapping("/admin/{policyId}/status")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Update policy status (Admin only)")
     public ResponseEntity<PolicyResponse> adminUpdateStatus(
             @PathVariable Long policyId,
             @Valid @RequestBody PolicyStatusUpdateRequest request) {
@@ -177,7 +173,6 @@ public class PolicyController {
 
     @GetMapping("/admin/summary")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Get policy statistics summary (Admin only)")
     public ResponseEntity<PolicySummaryResponse> getPolicySummary() {
 
         return ResponseEntity.ok(

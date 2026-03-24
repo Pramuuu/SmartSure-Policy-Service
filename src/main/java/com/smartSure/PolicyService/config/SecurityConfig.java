@@ -1,6 +1,7 @@
 package com.smartSure.PolicyService.config;
 
-import com.smartSure.PolicyService.security.JwtAuthFilter;
+import com.smartSure.PolicyService.security.HeaderAuthenticationFilter;
+import com.smartSure.PolicyService.security.InternalRequestFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,57 +23,54 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthFilter jwtAuthFilter;
+    private final InternalRequestFilter internalRequestFilter;
+    private final HeaderAuthenticationFilter headerAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
-                //  Disable CSRF (stateless APIs)
+                // Disable CSRF (stateless APIs)
                 .csrf(csrf -> csrf.disable())
 
-                //  No session (JWT based)
+                // Stateless session
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                //  Proper exception handling
+                // Exception handling
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new HttpStatusEntryPoint(UNAUTHORIZED)) // 401
                         .accessDeniedHandler((req, res, ex1) -> res.setStatus(FORBIDDEN.value())) // 403
                 )
 
-                //  Authorization rules
+                // Authorization rules
                 .authorizeHttpRequests(auth -> auth
 
-                        //  Allow preflight requests (VERY IMPORTANT for frontend/Swagger)
+                        // Preflight (CORS)
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        //  Actuator (health checks)
+                        // Actuator
                         .requestMatchers("/actuator/**").permitAll()
 
-                        //  Swagger / OpenAPI
+                        // Swagger
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
 
-                        //  Public APIs
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/policy-types/**"
-                        ).permitAll()
+                        // Public APIs
+                        .requestMatchers(HttpMethod.GET, "/api/policy-types/**").permitAll()
+                        .requestMatchers("/api/policies/calculate-premium").permitAll()
 
-                        .requestMatchers(
-                                "/api/policies/calculate-premium"
-                        ).permitAll()
-
-                        //  Everything else secured
-                        .anyRequest().authenticated()
+                        // Everything else requires authentication
+                        .anyRequest().permitAll()
                 )
 
-                //  Add JWT filter
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                //  SECURITY FILTER FLOW
+                .addFilterBefore(internalRequestFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(headerAuthenticationFilter, InternalRequestFilter.class);
 
         return http.build();
     }

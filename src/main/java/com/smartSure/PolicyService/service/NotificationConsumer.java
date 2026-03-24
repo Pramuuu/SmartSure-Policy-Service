@@ -26,6 +26,7 @@ public class NotificationConsumer {
 
     private final NotificationService notificationService;
 
+    // Consumes POLICY_PURCHASED event and sends a purchase confirmation email to the customer
     @RabbitListener(queues = RabbitMQConfig.QUEUE_POLICY_PURCHASED)
     public void handlePolicyPurchased(PolicyPurchasedEvent event) {
         log.info("Consuming POLICY_PURCHASED event — policyId={}, email={}",
@@ -49,6 +50,7 @@ public class NotificationConsumer {
         );
     }
 
+    // Consumes PREMIUM_PAID event and sends a payment confirmation email to the customer
     @RabbitListener(queues = RabbitMQConfig.QUEUE_PREMIUM_PAID)
     public void handlePremiumPaid(PremiumPaidEvent event) {
         log.info("Consuming PREMIUM_PAID event — premiumId={}, policyId={}",
@@ -70,6 +72,7 @@ public class NotificationConsumer {
         );
     }
 
+    // Consumes POLICY_CANCELLED event and sends a cancellation notification email to the customer
     @RabbitListener(queues = RabbitMQConfig.QUEUE_POLICY_CANCELLED)
     public void handlePolicyCancelled(PolicyCancelledEvent event) {
         log.info("Consuming POLICY_CANCELLED event — policyId={}", event.getPolicyId());
@@ -87,6 +90,7 @@ public class NotificationConsumer {
         );
     }
 
+    // Consumes PREMIUM_DUE_REMINDER event and sends a due date reminder email to the customer
     @RabbitListener(queues = RabbitMQConfig.QUEUE_PREMIUM_DUE_REMINDER)
     public void handlePremiumDueReminder(PremiumDueReminderEvent event) {
         log.info("Consuming PREMIUM_DUE_REMINDER event — premiumId={}", event.getPremiumId());
@@ -102,6 +106,7 @@ public class NotificationConsumer {
                 event.getDueDate());
     }
 
+    // Consumes POLICY_EXPIRY_REMINDER event and sends a policy expiry reminder email to the customer
     @RabbitListener(queues = RabbitMQConfig.QUEUE_POLICY_EXPIRY_REMINDER)
     public void handlePolicyExpiryReminder(PolicyExpiryReminderEvent event) {
         log.info("Consuming POLICY_EXPIRY_REMINDER event — policyId={}", event.getPolicyId());

@@ -18,15 +18,15 @@ import org.springframework.web.bind.annotation.PathVariable;
  * safe default values so PolicyService can still function.
  */
 @FeignClient(
-        name = "AUTHSERVICE",
+        name = "authService",
         url = "${services.auth-service.url:http://localhost:8081}",
         fallback = AuthServiceFallback.class
 )
 public interface AuthServiceClient {
 
-    @GetMapping("/api/auth/users/{userId}/profile")
+    @GetMapping("/api/auth/internal/users/{userId}/profile")
     CustomerProfileResponse getCustomerProfile(@PathVariable("userId") Long userId);
 
-    @GetMapping("/api/auth/users/{userId}/email")
+    @GetMapping("/api/auth/internal/users/{userId}/email")
     String getCustomerEmail(@PathVariable("userId") Long userId);
 }

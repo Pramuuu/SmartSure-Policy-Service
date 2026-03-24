@@ -27,9 +27,9 @@ public class PolicyTypeService {
 
     // ── Public ────────────────────────────────────────────────
 
+    // Returns all active policy types ordered by category — cached and circuit-breaker protected
     @Cacheable("policyTypes")
     @CircuitBreaker(name = "policyTypeService", fallbackMethod = "getAllActiveFallback")
-
     public List<PolicyTypeResponse> getAllActivePolicyTypes() {
         return policyTypeRepository
                 .findByStatusOrderByCategory(PolicyType.PolicyTypeStatus.ACTIVE)
@@ -37,26 +37,26 @@ public class PolicyTypeService {
                 .map(policyTypeMapper::toResponse)
                 .toList();
     }
-    // Fallback: return empty list so the API doesn't crash
-    // Customers see "no products available" instead of 500 error
+    // Circuit breaker fallback — returns empty list so the API stays up when DB is unreachable
     public List<PolicyTypeResponse> getAllActiveFallback(Throwable t) {
         log.error("getAllActivePolicyTypes CIRCUIT BREAKER fallback — reason={}", t.getMessage());
         return List.of(); // empty list — frontend shows "no products available"
     }
 
+    // Fetches a single policy type by ID — cached and circuit-breaker protected
     @Cacheable(value = "policyById", key = "#id")
     @CircuitBreaker(name = "policyTypeService", fallbackMethod = "getPolicyTypeFallback")
-
     public PolicyTypeResponse getPolicyTypeById(Long id) {
         return policyTypeMapper.toResponse(getPolicyTypeEntity(id));
     }
 
-    // Fallback: throw ServiceUnavailable — we can't proceed without the product details
+    // Circuit breaker fallback — throws ServiceUnavailableException since we can't proceed without product details
     public PolicyTypeResponse getPolicyTypeFallback(Long id, Throwable t) {
         log.error("getPolicyTypeById CIRCUIT BREAKER fallback — id={}, reason={}", id, t.getMessage());
         throw new ServiceUnavailableException("Policy type lookup service", t);
     }
 
+    // Returns active policy types filtered by insurance category
     public List<PolicyTypeResponse> getByCategory(PolicyType.InsuranceCategory category) {
         return policyTypeRepository.findByCategory(category)
                 .stream()
@@ -67,6 +67,7 @@ public class PolicyTypeService {
 
     // ── Admin ─────────────────────────────────────────────────
 
+    // Returns all policy types regardless of status — admin use only
     public List<PolicyTypeResponse> getAllPolicyTypes() {
         return policyTypeRepository.findAll()
                 .stream()
@@ -74,6 +75,7 @@ public class PolicyTypeService {
                 .toList();
     }
 
+    // Creates a new policy type, validates uniqueness and age range, then evicts the cache
     @Transactional
     @CacheEvict(value = {"policyTypes", "policyById"}, allEntries = true)
     public PolicyTypeResponse createPolicyType(PolicyTypeRequest request) {
@@ -99,6 +101,7 @@ public class PolicyTypeService {
         return policyTypeMapper.toResponse(policyTypeRepository.save(pt));
     }
 
+    // Updates all fields of an existing policy type and evicts the cache
     @Transactional
     @CacheEvict(value = {"policyTypes", "policyById"}, allEntries = true)
     public PolicyTypeResponse updatePolicyType(Long id, PolicyTypeRequest request) {
@@ -119,6 +122,7 @@ public class PolicyTypeService {
         return policyTypeMapper.toResponse(policyTypeRepository.save(pt));
     }
 
+    // Soft-deletes a policy type by setting its status to DISCONTINUED and evicts the cache
     @Transactional
     @CacheEvict(value = {"policyTypes", "policyById"}, allEntries = true)
     public void deletePolicyType(Long id) {
@@ -129,11 +133,13 @@ public class PolicyTypeService {
 
     // ── Helpers ───────────────────────────────────────────────
 
+    // Fetches a policy type entity by ID or throws PolicyTypeNotFoundException
     private PolicyType getPolicyTypeEntity(Long id) {
         return policyTypeRepository.findById(id)
                 .orElseThrow(() -> new PolicyTypeNotFoundException(id));
     }
 
+    // Throws IllegalArgumentException if minAge is greater than maxAge
     private void validateAgeRange(Integer minAge, Integer maxAge) {
         if (minAge != null && maxAge != null && minAge > maxAge) {
             throw new IllegalArgumentException("Min age cannot be greater than max age");
