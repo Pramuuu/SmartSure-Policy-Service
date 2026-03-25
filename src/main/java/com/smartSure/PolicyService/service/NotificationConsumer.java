@@ -31,6 +31,11 @@ public class NotificationConsumer {
     public void handlePolicyPurchased(PolicyPurchasedEvent event) {
         log.info("Consuming POLICY_PURCHASED event — policyId={}, email={}",
                 event.getPolicyId(), event.getCustomerEmail());
+        try {
+            Thread.sleep(10000); //(10 sec delay)
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
         if (event.getCustomerEmail() == null || event.getCustomerEmail().isBlank()) {
             log.warn("Skipping email — no customer email in event for policyId={}", event.getPolicyId());

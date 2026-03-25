@@ -30,15 +30,19 @@ public class RabbitMQConfig {
     public static final String DLQ_EXCHANGE = "smartsure.notifications.dlx";
 
     // ── Queue names ────────────────────────────────────────
-    public static final String QUEUE_POLICY_PURCHASED  = "notification.policy.purchased";
-    public static final String QUEUE_PREMIUM_PAID      = "notification.premium.paid";
-    public static final String QUEUE_POLICY_CANCELLED  = "notification.policy.cancelled";
-    public static final String DLQ                     = "smartsure.notifications.dlq";
+    public static final String QUEUE_POLICY_PURCHASED        = "notification.policy.purchased";
+    public static final String QUEUE_PREMIUM_PAID            = "notification.premium.paid";
+    public static final String QUEUE_POLICY_CANCELLED        = "notification.policy.cancelled";
+    public static final String QUEUE_PREMIUM_DUE_REMINDER    = "notification.premium.due.reminder";
+    public static final String QUEUE_POLICY_EXPIRY_REMINDER  = "notification.policy.expiry.reminder";
+    public static final String DLQ                           = "smartsure.notifications.dlq";
 
     // ── Routing keys ───────────────────────────────────────
-    public static final String KEY_POLICY_PURCHASED  = "policy.purchased";
-    public static final String KEY_PREMIUM_PAID      = "premium.paid";
-    public static final String KEY_POLICY_CANCELLED  = "policy.cancelled";
+    public static final String KEY_POLICY_PURCHASED       = "policy.purchased";
+    public static final String KEY_PREMIUM_PAID           = "premium.paid";
+    public static final String KEY_POLICY_CANCELLED       = "policy.cancelled";
+    public static final String KEY_PREMIUM_DUE_REMINDER   = "premium.due.reminder";
+    public static final String KEY_POLICY_EXPIRY_REMINDER = "policy.expiry.reminder";
 
     // ── Exchange ───────────────────────────────────────────
 
@@ -140,13 +144,7 @@ public class RabbitMQConfig {
         return template;
     }
 
-    // Add these constants at the top with the others:
-    public static final String QUEUE_PREMIUM_DUE_REMINDER    = "notification.premium.due.reminder";
-    public static final String QUEUE_POLICY_EXPIRY_REMINDER  = "notification.policy.expiry.reminder";
-    public static final String KEY_PREMIUM_DUE_REMINDER      = "premium.due.reminder";
-    public static final String KEY_POLICY_EXPIRY_REMINDER    = "policy.expiry.reminder";
-
-// Add these queue and binding beans:
+    // ── Premium Due Reminder Queue ─────────────────────────
 
     @Bean
     public Queue premiumDueReminderQueue() {
@@ -164,6 +162,8 @@ public class RabbitMQConfig {
                 .to(notificationExchange())
                 .with(KEY_PREMIUM_DUE_REMINDER);
     }
+
+    // ── Policy Expiry Reminder Queue ───────────────────────
 
     @Bean
     public Queue policyExpiryReminderQueue() {

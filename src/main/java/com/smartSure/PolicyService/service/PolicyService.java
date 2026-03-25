@@ -57,8 +57,8 @@ public class PolicyService {
     // ═══════════════════════════════════════════════════════════
 
     // Validates policy type, checks duplicates, calculates premium, saves policy, generates schedule, and fires purchase event
-    @CircuitBreaker(name = "policyTypeService", fallbackMethod = "purchaseFallback")
-    @RateLimiter(name = "policyPurchase", fallbackMethod = "purchaseRateLimitFallback")
+//    @CircuitBreaker(name = "policyTypeService", fallbackMethod = "purchaseFallback")
+//    @RateLimiter(name = "policyPurchase", fallbackMethod = "purchaseRateLimitFallback")
     @Transactional
     public PolicyResponse purchasePolicy(Long customerId, PolicyPurchaseRequest request) {
 
