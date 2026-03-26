@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <springProperty scope="context" name="APP_NAME"  source="spring.application.name" defaultValue="PolicyService"/>
+    <springProperty scope="context" name="LOKI_URL"  source="loki.url"               defaultValue="http://localhost:3100"/>
+
+    <!-- ══════════════════════════════════════════
+         CONSOLE — pretty for local development
+    ══════════════════════════════════════════ -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) [%cyan(%X{traceId:-})] [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ══════════════════════════════════════════
+         LOKI — structured JSON for Grafana
+         Loki expects labels + log line.
+         traceId/spanId are injected by Micrometer Tracing automatically.
+    ══════════════════════════════════════════ -->
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>${LOKI_URL}/loki/api/v1/push</url>
+        </http>
+        <format>
+            <label>
+                <pattern>app=${APP_NAME},host=${HOSTNAME},level=%level</pattern>
+            </label>
+            <message>
+                <pattern>
+                    {
+                    "timestamp": "%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}",
+                    "level": "%level",
+                    "logger": "%logger{36}",
+                    "thread": "%thread",
+                    "traceId": "%X{traceId:-none}",
+                    "spanId": "%X{spanId:-none}",
+                    "message": "%message",
+                    "exception": "%ex{short}"
+                    }
+                </pattern>
+            </message>
+            <sortByTime>true</sortByTime>
+        </format>
+    </appender>
+
+    <!-- ══════════════════════════════════════════
+         ASYNC wrapper — never let Loki I/O block
+         a business thread
+    ══════════════════════════════════════════ -->
+    <appender name="ASYNC_LOKI" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="LOKI"/>
+        <queueSize>10000</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+    </appender>
+
+    <!-- ══════════════════════════════════════════
+         ROOT LOGGER
+    ══════════════════════════════════════════ -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_LOKI"/>
+    </root>
+
+    <!-- Reduce noise from frameworks -->
+    <logger name="org.hibernate.SQL"                         level="WARN"/>
+    <logger name="org.springframework.security"              level="WARN"/>
+    <logger name="org.springframework.web"                   level="WARN"/>
+    <logger name="com.netflix.eureka"                        level="WARN"/>
+    <logger name="com.netflix.discovery"                     level="WARN"/>
+    <logger name="org.springframework.cloud.openfeign"       level="WARN"/>
+
+    <!-- Your packages — keep at INFO -->
+    <logger name="com.smartSure.PolicyService" level="INFO"/>
+
+</configuration>

@@ -193,6 +193,32 @@
 <!--			<artifactId>resilience4j-micrometer</artifactId>-->
 <!--			<version>2.2.0</version>-->
 <!--		</dependency>-->
+		<!-- ================= OBSERVABILITY ================= -->
+
+		<!-- Micrometer Prometheus registry — exposes /actuator/prometheus -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
+		<!-- Micrometer Tracing bridge for Zipkin (Brave) -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-brave</artifactId>
+		</dependency>
+
+		<!-- Zipkin reporter — sends spans to your Zipkin Docker container -->
+		<dependency>
+			<groupId>io.zipkin.reporter2</groupId>
+			<artifactId>zipkin-reporter-brave</artifactId>
+		</dependency>
+
+		<!-- Loki Logback appender — ships structured logs to Loki Docker container -->
+		<dependency>
+			<groupId>com.github.loki4j</groupId>
+			<artifactId>loki-logback-appender</artifactId>
+			<version>1.4.2</version>
+		</dependency>
 
 	</dependencies>
 
